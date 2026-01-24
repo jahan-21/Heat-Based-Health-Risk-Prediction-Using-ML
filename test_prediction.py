@@ -16,10 +16,10 @@ def get_risk_label(hi_value):
 # --- MAIN TEST ---
 print("🧪 TESTING THE MODEL FOR: Madurai")
 
-# 1. Load the Madurai Brains
+# 1. Load the Ariyalur Brains
 try:
-    model_temp = joblib.load('models/Madurai_temp_model.pkl')
-    model_hum = joblib.load('models/Madurai_hum_model.pkl')
+    model_temp = joblib.load('models/Ariyalur_temp_model.pkl')
+    model_hum = joblib.load('models/Ariyalur_hum_model.pkl')
     print("✅ Models loaded successfully!")
 except:
     print("❌ Error: Could not find model files. Did you run train_models.py?")

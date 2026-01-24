@@ -53,8 +53,8 @@ tn_districts = {
 # --- 3. FUNCTIONS ---
 def load_models(city):
     try:
-        temp_model = joblib.load(f'models/{city}_temp_model.pkl')
-        hum_model = joblib.load(f'models/{city}_hum_model.pkl')
+        temp_model = joblib.load(f'models_xgb/{city}_temp_xgb.pkl')
+        hum_model = joblib.load(f'models_xgb/{city}_hum_xgb.pkl')
         return temp_model, hum_model
     except:
         return None, None
