@@ -1,60 +1,62 @@
 import os
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score
 import joblib
 
-# 1. Setup: Create a folder to save the trained 'brains' (models)
 if not os.path.exists('models'):
     os.makedirs('models')
-    print("📂 Created a new folder called 'models'!")
 
-# 2. Find all the CSV files we downloaded
 data_folder = 'data'
 files = [f for f in os.listdir(data_folder) if f.endswith('_weather.csv')]
 
-print(f"🚀 Found {len(files)} cities. Starting training...")
+print(f"🚀 Found {len(files)} cities. Starting Random Forest Training...\n")
 
-# 3. Loop through each city and train its own AI
+total_accuracy = 0
+
 for file in files:
-    city_name = file.replace('_weather.csv', '') # Extract "Chennai" from filename
-    print(f"\n🧠 Training AI for {city_name}...")
+    city_name = file.replace('_weather.csv', '')
     
-    # Load the data
-    df = pd.read_csv(os.path.join(data_folder, file))
+    # Load Data
+    file_path = os.path.join(data_folder, file)
+    df = pd.read_csv(file_path)
     
-    # --- THE LOGIC: LAG FEATURES ---
-    # We want to use TODAY'S weather to predict TOMORROW'S.
-    # So we create a 'Target' column by shifting data up by 1 row.
-    
-    df['Target_Temp'] = df['Max_Temp'].shift(-1)      # Tomorrow's Temp
-    df['Target_Humidity'] = df['Humidity'].shift(-1)  # Tomorrow's Humidity
-    
-    # Drop the last row (because it has no tomorrow to predict)
+    # Feature Engineering (Lag Features)
+    df['Target_Temp'] = df['Max_Temp'].shift(-1)
+    df['Target_Humidity'] = df['Humidity'].shift(-1)
     df = df.dropna()
     
-    # Define Inputs (X) and Outputs (y)
-    # Inputs: Today's stats
     features = ['Max_Temp', 'Humidity', 'Wind_Speed', 'Rainfall']
     X = df[features]
-    
-    # Outputs: Tomorrow's stats
     y_temp = df['Target_Temp']
     y_hum = df['Target_Humidity']
     
-    # --- TRAINING THE MODELS ---
-    # Model 1: Temperature Predictor
-    model_temp = RandomForestRegressor(n_estimators=100, random_state=42)
-    model_temp.fit(X, y_temp)
+    # Split Data (80% Train, 20% Test) to calculate accuracy
+    X_train, X_test, y_train, y_test = train_test_split(X, y_temp, test_size=0.2, random_state=42)
     
-    # Model 2: Humidity Predictor
+    # Train Temperature Model
+    model_temp = RandomForestRegressor(n_estimators=100, random_state=42)
+    model_temp.fit(X_train, y_train)
+    
+    # Calculate Accuracy
+    preds = model_temp.predict(X_test)
+    accuracy = r2_score(y_test, preds) * 100
+    total_accuracy += accuracy
+    
+    print(f"📍 Training RF for {city_name}...")
+    print(f"   🌡️  Temp Model Accuracy: {accuracy:.2f}%")
+    
+    # Train Humidity Model (Full data for final saving)
     model_hum = RandomForestRegressor(n_estimators=100, random_state=42)
     model_hum.fit(X, y_hum)
     
-    # --- SAVING THE BRAINS ---
-    # We save them as .pkl files so we can use them later in the app
+    # Save Models (Retraining Temp on full data before saving)
+    model_temp.fit(X, y_temp)
+    
     joblib.dump(model_temp, f'models/{city_name}_temp_model.pkl')
     joblib.dump(model_hum, f'models/{city_name}_hum_model.pkl')
-    
-    print(f"✅ Trained & Saved models for {city_name}!")
 
-print("\n🎉 ALL TRAINING COMPLETE! Your AI is ready.")
+avg_acc = total_accuracy / len(files)
+print(f"\n🎉 ALL RF MODELS TRAINED! Average Accuracy: {avg_acc:.2f}%")
+print("📁 Models saved in 'models/' folder.")
