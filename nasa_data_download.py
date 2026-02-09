@@ -3,12 +3,11 @@ import time
 import requests
 import pandas as pd
 
-# 1. Setup: Create a folder for data
 if not os.path.exists('data'):
     os.makedirs('data')
     print("📂 Created a new folder called 'data'!")
 
-# 2. FULL LIST OF TAMIL NADU DISTRICTS (38 Cities)
+
 locations = {
     "Ariyalur": {"lat": 11.1401, "lon": 79.0786},
     "Chengalpattu": {"lat": 12.6939, "lon": 79.9757},
@@ -50,14 +49,14 @@ locations = {
     "Virudhunagar": {"lat": 9.5680, "lon": 77.9624}
 }
 
-# 3. Connection Settings (2010 to 2024)
+
 start_date = "20100101"
 end_date = "20240101"
 base_url = "https://power.larc.nasa.gov/api/temporal/daily/point"
 
 print(f"🚀 Starting Massive Data Collection for {len(locations)} Districts...")
 
-# 4. Loop through each city
+
 for i, (city, coords) in enumerate(locations.items(), 1):
     print(f"[{i}/{len(locations)}] ⏳ Downloading {city}...")
     
@@ -93,7 +92,6 @@ for i, (city, coords) in enumerate(locations.items(), 1):
     except Exception as e:
         print(f"   ❌ Error: {e}")
 
-    # Wait 1.5 seconds to be polite to NASA
     time.sleep(1.5) 
 
 print("\n🎉 MISSION COMPLETE: All 38 Districts Downloaded!")

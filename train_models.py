@@ -18,11 +18,10 @@ total_accuracy = 0
 for file in files:
     city_name = file.replace('_weather.csv', '')
     
-    # Load Data
+    
     file_path = os.path.join(data_folder, file)
     df = pd.read_csv(file_path)
     
-    # Feature Engineering (Lag Features)
     df['Target_Temp'] = df['Max_Temp'].shift(-1)
     df['Target_Humidity'] = df['Humidity'].shift(-1)
     df = df.dropna()
@@ -32,14 +31,12 @@ for file in files:
     y_temp = df['Target_Temp']
     y_hum = df['Target_Humidity']
     
-    # Split Data (80% Train, 20% Test) to calculate accuracy
+    
     X_train, X_test, y_train, y_test = train_test_split(X, y_temp, test_size=0.2, random_state=42)
     
-    # Train Temperature Model
     model_temp = RandomForestRegressor(n_estimators=100, random_state=42)
     model_temp.fit(X_train, y_train)
-    
-    # Calculate Accuracy
+   
     preds = model_temp.predict(X_test)
     accuracy = r2_score(y_test, preds) * 100
     total_accuracy += accuracy
@@ -47,11 +44,9 @@ for file in files:
     print(f"📍 Training RF for {city_name}...")
     print(f"   🌡️  Temp Model Accuracy: {accuracy:.2f}%")
     
-    # Train Humidity Model (Full data for final saving)
     model_hum = RandomForestRegressor(n_estimators=100, random_state=42)
     model_hum.fit(X, y_hum)
     
-    # Save Models (Retraining Temp on full data before saving)
     model_temp.fit(X, y_temp)
     
     joblib.dump(model_temp, f'models/{city_name}_temp_model.pkl')

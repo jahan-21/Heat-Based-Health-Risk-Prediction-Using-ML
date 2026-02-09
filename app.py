@@ -4,10 +4,8 @@ import joblib
 import requests
 import plotly.express as px 
 
-# --- 1. CONFIGURATION ---
 st.set_page_config(page_title="TN Heat Risk AI", page_icon="☀️", layout="wide")
 
-# --- 2. FULL LIST OF TAMIL NADU DISTRICTS ---
 tn_districts = {
     "Ariyalur": {"lat": 11.1401, "lon": 79.0786},
     "Chengalpattu": {"lat": 12.6939, "lon": 79.9757},
@@ -49,14 +47,8 @@ tn_districts = {
     "Virudhunagar": {"lat": 9.5680, "lon": 77.9624}
 }
 
-# --- 3. FUNCTIONS ---
 def load_models(city):
-    """
-    Loads the Best Models (XGBoost) for prediction.
-    Path: models_xgb/
-    """
     try:
-        # We use the XGBoost models because they have higher accuracy (90.62%)
         temp_model = joblib.load(f'models_xgb/{city}_temp_xgb.pkl')
         hum_model = joblib.load(f'models_xgb/{city}_hum_xgb.pkl')
         return temp_model, hum_model
@@ -64,120 +56,106 @@ def load_models(city):
         return None, None
 
 def calculate_heat_index(T, RH):
-    """
-    Calculates NOAA Heat Index (Feels Like Temp)
-    T: Temperature in Celsius
-    RH: Relative Humidity in %
-    """
     return T + (0.55 - 0.0055 * RH) * (T - 14.5)
 
-# --- 4. UI LAYOUT ---
 st.title("☀️ Spatio-Temporal Heat Health Forecasting System")
 st.markdown("### 🏥 AI-Powered Warning System for Tamil Nadu (38 Districts)")
 
-# Sidebar
 st.sidebar.header("📍 Select Location")
 sorted_districts = sorted(list(tn_districts.keys()))
 city = st.sidebar.selectbox("Choose District:", sorted_districts)
 
 if st.sidebar.button("🔮 Predict Heat Risk"):
-    
     st.info(f"📡 Fetching live satellite data for {city}...")
-    
-    # --- 5. DATA FETCHING ---
+
     lat = tn_districts[city]['lat']
     lon = tn_districts[city]['lon']
-    
-    # Fetch 7 days of history to ensure we have a complete 'yesterday'
+
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&past_days=7&daily=temperature_2m_max,relative_humidity_2m_mean,wind_speed_10m_max,precipitation_sum&timezone=auto"
-    
+
     try:
         response = requests.get(url)
         data = response.json()
-        
-        # Parse API Response
+
         temps = data['daily']['temperature_2m_max']
         hums = data['daily']['relative_humidity_2m_mean']
-        
-        # Get the most recent complete data point (Last index)
+
         live_temp = temps[-1] 
         live_hum = hums[-1]
         live_wind = data['daily']['wind_speed_10m_max'][-1]
         live_rain = data['daily']['precipitation_sum'][-1]
-        
+
         st.success(f"✅ Data Received. Current Max Temp: {live_temp}°C")
 
-        # --- 6. PREDICTION ---
         model_t, model_h = load_models(city)
-        
+
         if model_t is None:
             st.error(f"❌ Error: XGBoost Model for {city} not found in 'models_xgb/' folder.")
         else:
-            # Prepare Input Data (Must match training features)
-            # Features: ['Max_Temp', 'Humidity', 'Wind_Speed', 'Rainfall']
-            # Note: We need a DataFrame to silence XGBoost warnings, but list of lists works too
             input_data = pd.DataFrame(
                 [[live_temp, live_hum, live_wind, live_rain]], 
                 columns=['Max_Temp', 'Humidity', 'Wind_Speed', 'Rainfall']
             )
-            
-            # Predict Next Day
+
             pred_temp = model_t.predict(input_data)[0]
             pred_hum = model_h.predict(input_data)[0]
-            
-            # Calculate Risk
+
+            # Elevation Calibration for Hill Stations
+            if city in ["Nilgiris", "Dindigul", "Theni"]: 
+                pred_temp = pred_temp - 4.0
+
             hi = calculate_heat_index(pred_temp, pred_hum)
+
             
-            # Determine Risk Level & Color
-            if hi < 27:
+            if pred_temp < 30:
                 risk = "LOW RISK"; color = "green"; bg = "#d4edda"
-            elif 27 <= hi < 32:
+            elif 30 <= pred_temp < 36:
                 risk = "MODERATE RISK"; color = "orange"; bg = "#fff3cd"
-            elif 32 <= hi < 41:
+            elif 36 <= pred_temp < 45:
                 risk = "HIGH RISK"; color = "red"; bg = "#f8d7da"
             else:
                 risk = "SEVERE RISK"; color = "darkred"; bg = "#721c24"
 
-            # --- 7. VISUALIZATION (Results) ---
             col1, col2, col3 = st.columns(3)
             col1.metric("🌡️ Predicted Temp (Tomorrow)", f"{pred_temp:.1f}°C", delta=f"{pred_temp-live_temp:.1f}")
             col2.metric("💧 Predicted Humidity", f"{pred_hum:.1f}%")
             col3.markdown(f"### Feels Like: {hi:.1f}°C")
-            
+
             st.markdown(f"""
             <div style="background-color: {bg}; padding: 15px; border-radius: 10px; text-align: center; border: 2px solid {color}; margin-bottom: 20px;">
                 <h2 style="color: {color}; margin:0;">⚠️ FORECAST: {risk}</h2>
             </div>
             """, unsafe_allow_html=True)
 
-            # --- 🔴 8. MODEL PERFORMANCE BENCHMARK ---
             st.markdown("---")
             st.subheader("📊 Model Performance Benchmark")
             st.write("System-wide average accuracy across all 38 districts (Validation Phase).")
 
-            # DATA: Comparison of Random Forest vs XGBoost
             accuracy_data = pd.DataFrame({
                 'Model': ['Random Forest (Baseline)', 'XGBoost (Advanced)'],
-                'Accuracy': [82.85, 83.20], # <--- YOUR REAL CALCULATED VALUES
+                'Accuracy': [82.85, 83.20],
                 'Color': ['#1f77b4', '#2ca02c'] 
             })
 
-            # Create Bar Chart
-            fig = px.bar(accuracy_data, 
-                         x='Model', 
-                         y='Accuracy', 
-                         color='Model', 
-                         range_y=[70, 100],  # Scale y-axis to make difference visible
-                         text='Accuracy',
-                         title="Overall System Accuracy (R² Score)",
-                         color_discrete_map={'Random Forest (Baseline)': '#636EFA', 'XGBoost (Advanced)': '#00CC96'})
-            
-            # Format Chart
+            fig = px.bar(
+                accuracy_data, 
+                x='Model', 
+                y='Accuracy', 
+                color='Model', 
+                range_y=[75, 90],
+                text='Accuracy',
+                title="Overall System Accuracy (R² Score)",
+                color_discrete_map={
+                    'Random Forest (Baseline)': '#636EFA',
+                    'XGBoost (Advanced)': '#00CC96'
+                }
+            )
+
             fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
             fig.update_layout(showlegend=False, height=400)
-            
+
             st.plotly_chart(fig, use_container_width=True)
-            
+
             
 
     except Exception as e:
